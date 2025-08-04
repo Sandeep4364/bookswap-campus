@@ -148,7 +148,7 @@ const Categories = ({ onNavigate }: CategoriesProps) => {
                   className="w-full" 
                   variant="default" 
                   size="sm"
-                  onClick={() => onNavigate("search")}
+                  onClick={() => onNavigate(`search?category=${encodeURIComponent(category.name)}`)}
                 >
                   <BookOpen className="w-4 h-4 mr-2" />
                   Browse Books

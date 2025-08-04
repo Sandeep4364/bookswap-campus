@@ -3,11 +3,13 @@ import Auth from "./Auth";
 import Dashboard from "@/components/dashboard/Dashboard";
 import Categories from "./Categories";
 import AddBook from "./AddBook";
+import SearchBooks from "./SearchBooks";
 import Navbar from "@/components/layout/Navbar";
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentPage, setCurrentPage] = useState("dashboard");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -34,7 +36,15 @@ const Index = () => {
   };
 
   const handleNavigate = (page: string) => {
-    setCurrentPage(page);
+    // Handle category selection from URL params
+    if (page.startsWith('search?category=')) {
+      const category = decodeURIComponent(page.split('category=')[1]);
+      setSelectedCategory(category);
+      setCurrentPage('search');
+    } else {
+      setSelectedCategory("");
+      setCurrentPage(page);
+    }
   };
 
   if (isLoading) {
@@ -60,10 +70,11 @@ const Index = () => {
         return <Categories onNavigate={handleNavigate} />;
       case "add-book":
         return <AddBook onNavigate={handleNavigate} />;
+      case "search":
+        return <SearchBooks onNavigate={handleNavigate} selectedCategory={selectedCategory} />;
       case "my-books":
       case "profile":
       case "messages":
-      case "search":
       case "wishlist":
       case "community":
         return (

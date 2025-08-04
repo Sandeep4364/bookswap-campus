@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Camera, BookOpen, DollarSign, Repeat, Gift, Star } from "lucide-react";
+import { Upload, Camera, BookOpen, DollarSign, Repeat, Gift, Star, Shield } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AddBookProps {
   onNavigate: (page: string) => void;
@@ -61,15 +62,69 @@ const AddBook = ({ onNavigate }: AddBookProps) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      
+      if (!user.id) {
+        throw new Error("User not authenticated");
+      }
+
+      const { data, error } = await supabase
+        .from('books')
+        .insert([
+          {
+            user_id: user.id,
+            title: formData.title,
+            author: formData.author,
+            isbn: formData.isbn || null,
+            course_code: formData.course || null,
+            category: formData.category,
+            condition: formData.condition,
+            listing_type: formData.listingType,
+            price: formData.listingType === 'sell' ? parseFloat(formData.price) : null,
+            description: formData.description || null,
+            location: formData.location,
+            contact_method: formData.contactMethod,
+            images: images,
+            status: 'active'
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
       toast({
         title: "Book listed successfully!",
         description: "Your textbook is now available for other students to find.",
       });
+      
+      // Reset form
+      setFormData({
+        title: "",
+        author: "",
+        isbn: "",
+        course: "",
+        category: "",
+        condition: "",
+        listingType: "",
+        price: "",
+        description: "",
+        location: "",
+        contactMethod: "platform"
+      });
+      setImages([]);
+      
+      onNavigate("search");
+    } catch (error: any) {
+      toast({
+        title: "Error listing book",
+        description: error.message || "Failed to list your book. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
       setIsLoading(false);
-      onNavigate("my-books");
-    }, 1500);
+    }
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -339,6 +394,56 @@ const AddBook = ({ onNavigate }: AddBookProps) => {
           </CardContent>
         </Card>
 
+        {/* Book Verification */}
+        <Card className="shadow-soft">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Shield className="w-5 h-5 mr-2" />
+              Book Verification
+            </CardTitle>
+            <CardDescription>
+              Get your book verified to increase trust and attract more buyers
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-semibold text-blue-900 mb-2">Why verify your book?</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Increases buyer confidence</li>
+                <li>• Higher visibility in search results</li>
+                <li>• Faster sales and exchanges</li>
+                <li>• Builds your seller reputation</li>
+              </ul>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl mb-2">📖</div>
+                  <h5 className="font-medium mb-1">ISBN Verification</h5>
+                  <p className="text-xs text-muted-foreground">
+                    Automatic verification using ISBN database
+                  </p>
+                </CardContent>
+              </Card>
+              
+              <Card className="border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl mb-2">✋</div>
+                  <h5 className="font-medium mb-1">Manual Review</h5>
+                  <p className="text-xs text-muted-foreground">
+                    Admin review for books without ISBN
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+            
+            <p className="text-xs text-muted-foreground">
+              * Verification will be processed after you list your book
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Submit */}
         <div className="flex gap-4">
           <Button
@@ -351,7 +456,7 @@ const AddBook = ({ onNavigate }: AddBookProps) => {
           </Button>
           <Button
             type="submit"
-            disabled={isLoading || !formData.title || !formData.author || !formData.condition || !formData.listingType}
+            disabled={isLoading || !formData.title || !formData.author || !formData.condition || !formData.listingType || !formData.category || !formData.location}
             className="flex-1"
           >
             {isLoading ? "Listing Book..." : "List Book"}
