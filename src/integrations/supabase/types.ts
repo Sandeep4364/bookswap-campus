@@ -14,7 +14,119 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      book_verification_requests: {
+        Row: {
+          admin_notes: string | null
+          book_id: string
+          created_at: string
+          id: string
+          request_type: string
+          status: string | null
+          updated_at: string
+          user_id: string
+          verification_data: Json | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          book_id: string
+          created_at?: string
+          id?: string
+          request_type: string
+          status?: string | null
+          updated_at?: string
+          user_id: string
+          verification_data?: Json | null
+        }
+        Update: {
+          admin_notes?: string | null
+          book_id?: string
+          created_at?: string
+          id?: string
+          request_type?: string
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+          verification_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_verification_requests_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      books: {
+        Row: {
+          author: string
+          category: string
+          condition: string
+          contact_method: string | null
+          course_code: string | null
+          created_at: string
+          description: string | null
+          id: string
+          images: string[] | null
+          isbn: string | null
+          listing_type: string
+          location: string
+          price: number | null
+          status: string | null
+          subcategory: string | null
+          title: string
+          updated_at: string
+          user_id: string
+          verified: boolean | null
+          views: number | null
+        }
+        Insert: {
+          author: string
+          category: string
+          condition: string
+          contact_method?: string | null
+          course_code?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          images?: string[] | null
+          isbn?: string | null
+          listing_type: string
+          location: string
+          price?: number | null
+          status?: string | null
+          subcategory?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+          verified?: boolean | null
+          views?: number | null
+        }
+        Update: {
+          author?: string
+          category?: string
+          condition?: string
+          contact_method?: string | null
+          course_code?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          images?: string[] | null
+          isbn?: string | null
+          listing_type?: string
+          location?: string
+          price?: number | null
+          status?: string | null
+          subcategory?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+          verified?: boolean | null
+          views?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
