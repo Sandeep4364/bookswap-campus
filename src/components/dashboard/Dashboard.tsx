@@ -225,6 +225,41 @@ const Dashboard = ({ onNavigate }: DashboardProps) => {
         </CardContent>
       </Card>
 
+      {/* New Features Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8 mb-8">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:shadow-medium transition-shadow cursor-pointer" onClick={() => onNavigate("map")}>
+          <CardContent className="p-6 text-center">
+            <div className="text-3xl mb-3">🗺️</div>
+            <h3 className="font-semibold mb-2">Map View</h3>
+            <p className="text-sm text-muted-foreground">Find books near you</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:shadow-medium transition-shadow cursor-pointer" onClick={() => onNavigate("digital-books")}>
+          <CardContent className="p-6 text-center">
+            <div className="text-3xl mb-3">📄</div>
+            <h3 className="font-semibold mb-2">Digital Books</h3>
+            <p className="text-sm text-muted-foreground">Upload & share PDFs</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-medium transition-shadow cursor-pointer" onClick={() => onNavigate("alerts")}>
+          <CardContent className="p-6 text-center">
+            <div className="text-3xl mb-3">🔔</div>
+            <h3 className="font-semibold mb-2">Book Alerts</h3>
+            <p className="text-sm text-muted-foreground">Get notified instantly</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200 hover:shadow-medium transition-shadow">
+          <CardContent className="p-6 text-center">
+            <div className="text-3xl mb-3">✅</div>
+            <h3 className="font-semibold mb-2">Verified Users</h3>
+            <p className="text-sm text-muted-foreground">Coming soon</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
         <Card className="bg-gradient-primary text-white border-0 shadow-medium">

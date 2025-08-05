@@ -68,7 +68,11 @@ const SearchBooks = ({ onNavigate, selectedCategory }: SearchBooksProps) => {
   }, []);
 
   useEffect(() => {
-    filterBooks();
+    if (books.length > 0) {
+      filterBooks();
+    } else {
+      setFilteredBooks([]);
+    }
   }, [books, searchTerm, categoryFilter, conditionFilter, listingTypeFilter]);
 
   const fetchBooks = async () => {

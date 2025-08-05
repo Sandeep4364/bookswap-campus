@@ -4,6 +4,9 @@ import Dashboard from "@/components/dashboard/Dashboard";
 import Categories from "./Categories";
 import AddBook from "./AddBook";
 import SearchBooks from "./SearchBooks";
+import MapView from "@/components/MapView";
+import DigitalBookUpload from "@/components/DigitalBookUpload";
+import InventoryAlerts from "@/components/InventoryAlerts";
 import Navbar from "@/components/layout/Navbar";
 
 const Index = () => {
@@ -72,6 +75,12 @@ const Index = () => {
         return <AddBook onNavigate={handleNavigate} />;
       case "search":
         return <SearchBooks onNavigate={handleNavigate} selectedCategory={selectedCategory} />;
+      case "map":
+        return <MapView onNavigate={handleNavigate} />;
+      case "digital-books":
+        return <DigitalBookUpload onNavigate={handleNavigate} />;
+      case "alerts":
+        return <InventoryAlerts onNavigate={handleNavigate} />;
       case "my-books":
       case "profile":
       case "messages":
