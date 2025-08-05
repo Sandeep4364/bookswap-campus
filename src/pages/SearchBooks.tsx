@@ -107,15 +107,15 @@ const SearchBooks = ({ onNavigate, selectedCategory }: SearchBooksProps) => {
       );
     }
 
-    if (categoryFilter) {
+    if (categoryFilter && categoryFilter !== "all") {
       filtered = filtered.filter(book => book.category === categoryFilter);
     }
 
-    if (conditionFilter) {
+    if (conditionFilter && conditionFilter !== "all") {
       filtered = filtered.filter(book => book.condition === conditionFilter);
     }
 
-    if (listingTypeFilter) {
+    if (listingTypeFilter && listingTypeFilter !== "all") {
       filtered = filtered.filter(book => book.listing_type === listingTypeFilter);
     }
 
@@ -191,7 +191,7 @@ const SearchBooks = ({ onNavigate, selectedCategory }: SearchBooksProps) => {
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 {categories.map((category) => (
                   <SelectItem key={category} value={category}>
                     {category}
@@ -205,7 +205,7 @@ const SearchBooks = ({ onNavigate, selectedCategory }: SearchBooksProps) => {
                 <SelectValue placeholder="All Conditions" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Conditions</SelectItem>
+                <SelectItem value="all">All Conditions</SelectItem>
                 {conditions.map((condition) => (
                   <SelectItem key={condition} value={condition}>
                     {condition.charAt(0).toUpperCase() + condition.slice(1).replace('-', ' ')}
@@ -219,7 +219,7 @@ const SearchBooks = ({ onNavigate, selectedCategory }: SearchBooksProps) => {
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Types</SelectItem>
+                <SelectItem value="all">All Types</SelectItem>
                 {listingTypes.map((type) => (
                   <SelectItem key={type} value={type}>
                     {type.charAt(0).toUpperCase() + type.slice(1)}
