@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import { Loader } from '@googlemaps/js-api-loader';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { MapPin, Navigation, Loader2, BookOpen, DollarSign, Repeat, Gift, Target, Settings } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { MapPin, Navigation, Loader2, BookOpen, DollarSign, Repeat, Gift, Target, Settings, Satellite, Map as MapIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,29 +35,38 @@ const MapView = ({ onNavigate }: MapViewProps) => {
   const [searchRadius, setSearchRadius] = useState([5]); // km, using array for Slider component
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
-  const [mapboxToken, setMapboxToken] = useState('');
-  const [showTokenInput, setShowTokenInput] = useState(true);
+  const [googleMapsApiKey, setGoogleMapsApiKey] = useState('');
+  const [showApiKeyInput, setShowApiKeyInput] = useState(true);
+  const [isSatelliteView, setIsSatelliteView] = useState(false);
   const { toast } = useToast();
   
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<google.maps.Marker[]>([]);
+  const circleRef = useRef<google.maps.Circle | null>(null);
+  const loaderRef = useRef<Loader | null>(null);
 
   useEffect(() => {
     fetchBooks();
   }, []);
 
   useEffect(() => {
-    if (mapboxToken && userLocation && mapContainerRef.current && !mapRef.current) {
+    if (googleMapsApiKey && userLocation && mapContainerRef.current && !mapRef.current) {
       initializeMap();
     }
-  }, [mapboxToken, userLocation]);
+  }, [googleMapsApiKey, userLocation]);
 
   useEffect(() => {
     if (mapRef.current && userLocation && books.length > 0) {
       updateMapMarkers();
     }
   }, [books, searchRadius, userLocation]);
+
+  useEffect(() => {
+    if (mapRef.current) {
+      mapRef.current.setMapTypeId(isSatelliteView ? 'satellite' : 'roadmap');
+    }
+  }, [isSatelliteView]);
 
   const getUserLocation = () => {
     if (navigator.geolocation) {
@@ -91,155 +101,102 @@ const MapView = ({ onNavigate }: MapViewProps) => {
     }
   };
 
-  const initializeMap = () => {
-    if (!mapContainerRef.current || !userLocation || !mapboxToken) return;
+  const initializeMap = async () => {
+    if (!mapContainerRef.current || !userLocation || !googleMapsApiKey) return;
 
-    mapboxgl.accessToken = mapboxToken;
+    try {
+      loaderRef.current = new Loader({
+        apiKey: googleMapsApiKey,
+        version: "weekly",
+        libraries: ["places", "geometry"]
+      });
 
-    mapRef.current = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [userLocation.lng, userLocation.lat],
-      zoom: 12
-    });
+      const { Map } = await loaderRef.current.importLibrary("maps") as google.maps.MapsLibrary;
+      const { AdvancedMarkerElement } = await loaderRef.current.importLibrary("marker") as google.maps.MarkerLibrary;
 
-    // Add navigation controls
-    mapRef.current.addControl(
-      new mapboxgl.NavigationControl(),
-      'top-right'
-    );
+      mapRef.current = new Map(mapContainerRef.current, {
+        center: userLocation,
+        zoom: 12,
+        mapTypeId: isSatelliteView ? 'satellite' : 'roadmap',
+        mapTypeControl: true,
+        mapTypeControlOptions: {
+          style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
+          position: google.maps.ControlPosition.TOP_CENTER,
+        },
+        zoomControl: true,
+        streetViewControl: true,
+        fullscreenControl: true,
+      });
 
-    // Add user location marker
-    new mapboxgl.Marker({ color: '#3b82f6' })
-      .setLngLat([userLocation.lng, userLocation.lat])
-      .setPopup(new mapboxgl.Popup().setHTML('<div><strong>Your Location</strong></div>'))
-      .addTo(mapRef.current);
+      // Add user location marker
+      const userMarker = new google.maps.Marker({
+        position: userLocation,
+        map: mapRef.current,
+        title: "Your Location",
+        icon: {
+          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="15" cy="15" r="12" fill="#3b82f6" stroke="white" stroke-width="3"/>
+              <circle cx="15" cy="15" r="4" fill="white"/>
+            </svg>
+          `),
+          scaledSize: new google.maps.Size(30, 30),
+          anchor: new google.maps.Point(15, 15)
+        }
+      });
 
-    // Add radius circle
-    mapRef.current.on('load', () => {
+      // Add info window for user location
+      const userInfoWindow = new google.maps.InfoWindow({
+        content: '<div><strong>Your Location</strong></div>'
+      });
+
+      userMarker.addListener('click', () => {
+        userInfoWindow.open(mapRef.current, userMarker);
+      });
+
+      // Add radius circle
       updateRadiusCircle();
-    });
+
+    } catch (error) {
+      console.error('Error loading Google Maps:', error);
+      toast({
+        title: "Map Loading Error",
+        description: "Failed to load Google Maps. Please check your API key.",
+        variant: "destructive"
+      });
+    }
   };
 
   const updateRadiusCircle = () => {
     if (!mapRef.current || !userLocation) return;
 
     // Remove existing circle
-    if (mapRef.current.getSource('radius-circle')) {
-      mapRef.current.removeLayer('radius-circle-fill');
-      mapRef.current.removeLayer('radius-circle-stroke');
-      mapRef.current.removeSource('radius-circle');
+    if (circleRef.current) {
+      circleRef.current.setMap(null);
     }
 
-    // Create circle geometry using simple math
-    const coords = createCircle([userLocation.lng, userLocation.lat], searchRadius[0]);
-
-    // Add circle source and layers
-    mapRef.current.addSource('radius-circle', {
-      type: 'geojson',
-      data: {
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [coords]
-        },
-        properties: {}
-      }
+    // Create new circle
+    circleRef.current = new google.maps.Circle({
+      strokeColor: '#3b82f6',
+      strokeOpacity: 0.8,
+      strokeWeight: 2,
+      fillColor: '#3b82f6',
+      fillOpacity: 0.1,
+      map: mapRef.current,
+      center: userLocation,
+      radius: searchRadius[0] * 1000, // Convert km to meters
     });
-
-    mapRef.current.addLayer({
-      id: 'radius-circle-fill',
-      type: 'fill',
-      source: 'radius-circle',
-      paint: {
-        'fill-color': '#3b82f6',
-        'fill-opacity': 0.1
-      }
-    });
-
-    mapRef.current.addLayer({
-      id: 'radius-circle-stroke',
-      type: 'line',
-      source: 'radius-circle',
-      paint: {
-        'line-color': '#3b82f6',
-        'line-width': 2,
-        'line-opacity': 0.8
-      }
-    });
-  };
-
-  // Simple distance calculation without external library
-  const createCircle = (center: [number, number], radiusInKm: number, points = 64) => {
-    const coords = [];
-    const distanceX = radiusInKm / (111.320 * Math.cos(center[1] * Math.PI / 180));
-    const distanceY = radiusInKm / 110.540;
-
-    for (let i = 0; i < points; i++) {
-      const angle = (i / points) * 2 * Math.PI;
-      const x = center[0] + (distanceX * Math.cos(angle));
-      const y = center[1] + (distanceY * Math.sin(angle));
-      coords.push([x, y]);
-    }
-    coords.push(coords[0]); // Close the polygon
-    return coords;
   };
 
   const updateMapMarkers = () => {
     if (!mapRef.current || !userLocation) return;
 
     // Clear existing markers
-    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current = [];
 
     // Update radius circle
-    const radiusInMeters = searchRadius[0] * 1000;
-    const coords = createCircle([userLocation.lng, userLocation.lat], searchRadius[0]);
-
-    if (mapRef.current.getSource('radius-circle')) {
-      const source = mapRef.current.getSource('radius-circle') as mapboxgl.GeoJSONSource;
-      source.setData({
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [coords]
-        },
-        properties: {}
-      });
-    } else {
-      mapRef.current.addSource('radius-circle', {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [coords]
-          },
-          properties: {}
-        }
-      });
-
-      mapRef.current.addLayer({
-        id: 'radius-circle-fill',
-        type: 'fill',
-        source: 'radius-circle',
-        paint: {
-          'fill-color': '#3b82f6',
-          'fill-opacity': 0.1
-        }
-      });
-
-      mapRef.current.addLayer({
-        id: 'radius-circle-stroke',
-        type: 'line',
-        source: 'radius-circle',
-        paint: {
-          'line-color': '#3b82f6',
-          'line-width': 2,
-          'line-opacity': 0.8
-        }
-      });
-    }
+    updateRadiusCircle();
 
     // Add book markers
     const nearbyBooks = getNearbyBooks();
@@ -253,54 +210,88 @@ const MapView = ({ onNavigate }: MapViewProps) => {
       // Calculate actual distance
       const actualDistance = calculateDistance(userLocation.lat, userLocation.lng, bookLat, bookLng);
 
-      // Create marker element
-      const markerEl = document.createElement('div');
-      markerEl.className = 'book-marker';
-      markerEl.style.cssText = `
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        background: ${book.listing_type === 'free' ? '#10b981' : book.listing_type === 'exchange' ? '#3b82f6' : '#f59e0b'};
-        border: 3px solid white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        color: white;
-        font-weight: bold;
-      `;
-      markerEl.innerHTML = getListingTypeIcon(book.listing_type);
+      // Create custom marker icon based on listing type
+      const markerColor = getMarkerColor(book.listing_type);
+      const markerIcon = getListingTypeIcon(book.listing_type);
 
-      // Create popup content
-      const popupContent = `
-        <div style="max-width: 200px;">
-          <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: bold;">${book.title}</h3>
-          <p style="margin: 0 0 4px 0; font-size: 12px; color: #666;">${book.author}</p>
+      const marker = new google.maps.Marker({
+        position: { lat: bookLat, lng: bookLng },
+        map: mapRef.current,
+        title: book.title,
+        icon: {
+          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="20" cy="20" r="15" fill="${markerColor}" stroke="white" stroke-width="3"/>
+              <text x="20" y="25" text-anchor="middle" fill="white" font-size="12" font-weight="bold">${markerIcon}</text>
+            </svg>
+          `),
+          scaledSize: new google.maps.Size(40, 40),
+          anchor: new google.maps.Point(20, 20)
+        }
+      });
+
+      // Create info window content
+      const infoWindowContent = `
+        <div style="max-width: 250px; padding: 10px;">
+          <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: bold;">${book.title}</h3>
+          <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">${book.author}</p>
           <p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">${actualDistance.toFixed(1)} km away</p>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${book.condition}</span>
-            <strong style="color: #059669;">${formatPrice(book.price, book.listing_type)}</strong>
+            <span style="background: #f3f4f6; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${book.condition}</span>
+            <strong style="color: #059669; font-size: 14px;">${formatPrice(book.price, book.listing_type)}</strong>
           </div>
-          <p style="margin: 0; font-size: 11px; color: #666;">📍 ${book.location}</p>
+          <p style="margin: 0; font-size: 12px; color: #666;">📍 ${book.location}</p>
+          <button onclick="window.selectBook('${book.id}')" style="
+            width: 100%; 
+            margin-top: 8px; 
+            padding: 6px 12px; 
+            background: #3b82f6; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer;
+            font-size: 12px;
+          ">View Details</button>
         </div>
       `;
 
-      const popup = new mapboxgl.Popup({ offset: 15 })
-        .setHTML(popupContent);
+      const infoWindow = new google.maps.InfoWindow({
+        content: infoWindowContent
+      });
 
-      const marker = new mapboxgl.Marker(markerEl)
-        .setLngLat([bookLng, bookLat])
-        .setPopup(popup)
-        .addTo(mapRef.current!);
-
-      markerEl.addEventListener('click', () => {
+      marker.addListener('click', () => {
+        // Close other info windows
+        markersRef.current.forEach((m: any) => {
+          if (m.infoWindow) {
+            m.infoWindow.close();
+          }
+        });
+        
+        infoWindow.open(mapRef.current, marker);
         setSelectedBook({...book, latitude: bookLat, longitude: bookLng});
       });
 
+      // Store info window reference
+      (marker as any).infoWindow = infoWindow;
       markersRef.current.push(marker);
     });
+
+    // Add global function to select book from info window
+    (window as any).selectBook = (bookId: string) => {
+      const book = nearbyBooks.find(b => b.id === bookId);
+      if (book) {
+        setSelectedBook(book);
+      }
+    };
+  };
+
+  const getMarkerColor = (listingType: string) => {
+    switch (listingType) {
+      case 'sell': return '#f59e0b';
+      case 'exchange': return '#3b82f6';
+      case 'free': return '#10b981';
+      default: return '#6b7280';
+    }
   };
 
   const fetchBooks = async () => {
@@ -361,16 +352,16 @@ const MapView = ({ onNavigate }: MapViewProps) => {
     return price ? `$${price}` : 'Contact for price';
   };
 
-  const handleTokenSubmit = () => {
-    if (!mapboxToken) {
+  const handleApiKeySubmit = () => {
+    if (!googleMapsApiKey) {
       toast({
-        title: "Token Required",
-        description: "Please enter your Mapbox public token to use the map.",
+        title: "API Key Required",
+        description: "Please enter your Google Maps API key to use the map.",
         variant: "destructive"
       });
       return;
     }
-    setShowTokenInput(false);
+    setShowApiKeyInput(false);
     getUserLocation();
   };
 
@@ -385,7 +376,7 @@ const MapView = ({ onNavigate }: MapViewProps) => {
     );
   }
 
-  if (showTokenInput) {
+  if (showApiKeyInput) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
@@ -393,7 +384,7 @@ const MapView = ({ onNavigate }: MapViewProps) => {
             Books Near You
           </h1>
           <p className="text-muted-foreground">
-            Find textbooks available for pickup in your area
+            Find textbooks available for pickup in your area using satellite mapping
           </p>
         </div>
 
@@ -406,24 +397,25 @@ const MapView = ({ onNavigate }: MapViewProps) => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              To use the interactive map, please enter your Mapbox public token. You can get one for free at:
+              To use the interactive map with satellite view, please enter your Google Maps API key. You can get one for free at:
             </p>
             <Button
               variant="outline"
-              onClick={() => window.open('https://account.mapbox.com/access-tokens/', '_blank')}
+              onClick={() => window.open('https://developers.google.com/maps/documentation/javascript/get-api-key', '_blank')}
               className="w-full"
             >
-              Get Mapbox Token
+              Get Google Maps API Key
             </Button>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Mapbox Public Token:</label>
+              <label className="text-sm font-medium">Google Maps API Key:</label>
               <Input
-                placeholder="pk.eyJ1IjoieW91cnVzZXJuYW1lIiwia..."
-                value={mapboxToken}
-                onChange={(e) => setMapboxToken(e.target.value)}
+                placeholder="AIzaSyBdVl-cTICSwYKrZ95SuvNw7dbMuDt1KG0"
+                value={googleMapsApiKey}
+                onChange={(e) => setGoogleMapsApiKey(e.target.value)}
+                type="password"
               />
             </div>
-            <Button onClick={handleTokenSubmit} className="w-full">
+            <Button onClick={handleApiKeySubmit} className="w-full">
               Initialize Map
             </Button>
           </CardContent>
@@ -442,7 +434,7 @@ const MapView = ({ onNavigate }: MapViewProps) => {
           Books Near You
         </h1>
         <p className="text-muted-foreground">
-          Find textbooks available for pickup in your area
+          Find textbooks available for pickup in your area with satellite mapping
         </p>
       </div>
 
@@ -456,13 +448,29 @@ const MapView = ({ onNavigate }: MapViewProps) => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="satellite-mode"
+                    checked={isSatelliteView}
+                    onCheckedChange={setIsSatelliteView}
+                  />
+                  <Label htmlFor="satellite-mode" className="flex items-center">
+                    {isSatelliteView ? <Satellite className="w-4 h-4 mr-1" /> : <MapIcon className="w-4 h-4 mr-1" />}
+                    {isSatelliteView ? 'Satellite View' : 'Map View'}
+                  </Label>
+                </div>
+              </div>
+              <Button onClick={getUserLocation} variant="outline" size="sm">
+                <Navigation className="w-4 h-4 mr-1" />
+                Update Location
+              </Button>
+            </div>
+            
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium">Search Radius: {searchRadius[0]} km</label>
-                <Button onClick={getUserLocation} variant="outline" size="sm">
-                  <Navigation className="w-4 h-4 mr-1" />
-                  Update Location
-                </Button>
               </div>
               <Slider
                 value={searchRadius}
@@ -488,7 +496,10 @@ const MapView = ({ onNavigate }: MapViewProps) => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Interactive Map</span>
+                <span className="flex items-center">
+                  {isSatelliteView ? <Satellite className="w-5 h-5 mr-2" /> : <MapIcon className="w-5 h-5 mr-2" />}
+                  Interactive {isSatelliteView ? 'Satellite' : 'Map'} View
+                </span>
                 <Badge variant="secondary">{nearbyBooks.length} books nearby</Badge>
               </CardTitle>
             </CardHeader>
@@ -496,7 +507,7 @@ const MapView = ({ onNavigate }: MapViewProps) => {
               <div 
                 ref={mapContainerRef}
                 className="h-96 w-full rounded-lg"
-                style={{ minHeight: '400px' }}
+                style={{ minHeight: '500px' }}
               />
             </CardContent>
           </Card>
